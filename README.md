@@ -2,27 +2,32 @@
 
 In this lab you will implement response time analysis (and overall schedulability test) adhering to the Stack Resource Policy (SRP). While SRP allows for both static and Earliest Deadline First scheduling, the RTIC framework adopts static priorities. We will make the same simplification in this lab.
 
+Implement the response time analysis, and overall schedulability test. (Skeleton found under `srp_analysis`.)
 
-## Grading
+## Optional for higher grades
 
-3. Implement the response time analysis, and overall schedulability test. (Skeleton found under `srp_analysis`.)
+- Use `clap` for command line parsing making your application work as a "professional" tool. This allows you to easily implement a `-h/--help` to document your tool and its use.
 
-4. Generate report on the analysis results, this could be as a generated html/xml or however you feel like results are best reported and visualized.
+- Generate report on the analysis results, this could be as a generated html/xml or however you feel like results are best reported and visualized.
 
-  Think about the usability of the tool and write a short description of its use. Hint, you may use `clap` for command line parsing making your application work as a "professional" tool. This allows you to easily implement a -h/--help to document your tool and its use.
-
-1. Characterize scheduling overhead of RTIC for
+- Characterize scheduling overhead of RTIC for.
    
-  - hardware tasks (time from `pend` to return from ISR).
+  - dispatching hardware tasks. 
 
-  - software tasks (time from the dispatch ISR started to entry of corresponding task). 
+  - dispatching software tasks. 
 
   Make a new repository based on the `d7020e_lab1` repository where you implement cycle accurate benchmarking for the above.
 
-  Extend the task/resource model in the Lab4 analyzer to distinguish between software and hardware tasks, and take the OH into account for the analysis. 
+- Extend the task/resource model in the Lab4 analyzer to distinguish between software and hardware tasks, and take the OH into account for the analysis (including the OH scaling of message payload size for software tasks). 
 
-Grades are incremental, i.e. to get a 5 you must pass grades 3 and 4.
-
+Hint. For simplicity you can measure the round trip time for hardware and software tasks (from the `init` task). 
+  
+The round trip time for hardware task will include the `pend` and the hardware dispatch mechanism. For software tasks will include the `spawn` (internal queuing of the message payload, the `pend` of the dispatcher and the hardware dispatch mechanism), together with the dispatcher dequeuing the message payload and running the task. 
+  
+The round trip time provides a safe over-approximation of the dispatch overhead. 
+  
+Try to characterize the overhead in terms of payload size (you can try with an empty message, a 4 byte message and a 32 byte message, to derive a formula for the OH scaling.)
+  
 ---
 
 ## Preparation
