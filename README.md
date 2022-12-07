@@ -1,8 +1,8 @@
 # Lab4
 
-In this lab you will implement response time analysis (and overall schedulability test) adhering to the Stack Resource Policy (SRP). While SRP allows for both static and Earliest Deadline First scheduling, the RTIC framework adopts static priorities. We will make the same simplification in this lab.
+In this lab you will implement response time analysis (and overall schedulability test) adhering to the Stack Resource Policy (SRP). While SRP allows for both static and Earliest Deadline First (EDF) scheduling, the RTIC framework adopts static priorities. We will make the same simplification in this lab.
 
-Implement the response time analysis, and overall schedulability test. (Skeleton found under `srp_analysis`.)
+Implement the response time analysis, and overall schedulability test. (Skeleton found under `src`.)
 
 ## Optional for higher grades
 
@@ -10,7 +10,7 @@ Implement the response time analysis, and overall schedulability test. (Skeleton
 
 - Generate report on the analysis results, this could be as a generated html/xml or however you feel like results are best reported and visualized.
 
-- Characterize scheduling overhead of RTIC for.
+- Characterize scheduling overhead of RTIC for:
    
   - dispatching hardware tasks. 
 
@@ -20,13 +20,15 @@ Implement the response time analysis, and overall schedulability test. (Skeleton
 
 - Extend the task/resource model in the Lab4 analyzer to distinguish between software and hardware tasks, and take the OH into account for the analysis (including the OH scaling of message payload size for software tasks). 
 
-Hint. For simplicity you can measure the round trip time for hardware and software tasks (from the `init` task). 
+Hint. For simplicity you can measure the round trip time for hardware and software tasks (from the `idle` task). 
   
-The round trip time for hardware task will include the `pend` and the hardware dispatch mechanism. For software tasks will include the `spawn` (internal queuing of the message payload, the `pend` of the dispatcher and the hardware dispatch mechanism), together with the dispatcher dequeuing the message payload and running the task. 
+The round trip time for hardware task will include the `pend` and the hardware dispatch mechanism. For software tasks the round trip time will include the `spawn` (internal queuing of the message payload, the `pend` of the dispatcher and the hardware dispatch mechanism), together with the dispatcher dequeuing the message payload and running the task. 
   
 The round trip time provides a safe over-approximation of the dispatch overhead. 
   
 Try to characterize the overhead in terms of payload size (you can try with an empty message, a 4 byte message and a 32 byte message, to derive a formula for the OH scaling.)
+
+Since we are just interested in the scheduling overhead the task itself should be empty.
   
 ---
 
@@ -58,15 +60,15 @@ A resource `r` is defined by:
 
 - `π(r)` the resource ceiling, computed as the highest priority of any task accessing the resource `r`. SRP allows for dynamic priorities (e.g. EDF), however in our case we have static priorities only.
 
-For SRP based analysis we assume a task to perform/execute a finite sequence of operations/instructions (aka. run-to-end/run-to-completion semantics). During execution, a task can claim (lock) resources in a nested fashion. Sequential re-claim of resources is allowed but NOT re-claiming an already held (locked) resource (since that would violate the Rust memory aliasing rule).
+For SRP based analysis we assume a task to perform/execute a finite sequence of operations/instructions (aka. run-to-end/run-to-completion semantics). During execution, a task can claim (lock) resources in a nested fashion. Sequential re-claim of resources is allowed but NOT re-claiming an already held (locked) resource (since that would violate the Rust memory aliasing rule - re-claiming the same resource twice gives you two mutable references to the same resource).
 
 Let `...` denote a sequence of instructions, and  `[r:...]` denote a sequence of instructions holding the resource `r` (i.e. a critical section for the resource `r`).
 
 A possible trace for a task can look like:
 
- `[t1:...[r1:...[r2:...]...]...[r2:...]...]`. In this case the task `t1` starts and at some point claims `r1` and inside the critical section claims `r2` (nested claim), at some point it exits `r2`, exits `r1` and continues executing and enters a critical section on `r2`, and then finally executes until completion. We see that `t1` holds `r1` once and `r2` twice during its execution (but never holds `r2` while already holding `r2`).
-
- In `srp_analysis/common.rs` a data structure for expressing traces is given, and in `srp_analysis/main.rs` an example set of task traces is provided.
+`t1:...[r1:...[r2:...]...]...[r2:...]...`. In this case the task `t1` starts and at some point claims `r1` and inside the critical section claims `r2` (nested claim), at some point it exits `r2`, exits `r1` and continues executing and enters a critical section on `r2`, and then finally executes until completion. We see that `t1` holds `r1` once and `r2` twice during its execution (but never holds `r2` while already holding `r2`).
+ 
+In `src/common.rs` a data structure for expressing traces is given, and in `src/main.rs` an example set of task traces is provided.
 
 ---
 
@@ -78,27 +80,27 @@ A possible trace for a task can look like:
 
 - `C(t)` the Worst Case Execution Time (WCET) for Task `t`
 
-In general determining WCET is rather tricky, especially for systems with advanced memory hierarchies (caches) and multiple cores/CPUs. In our case we target single core architectures without caching, hence a measurement based approach will give a very accurate estimate.
+In general determining WCET is rather tricky, especially for systems with advanced memory hierarchies (caches) and multiple cores/CPUs. In our case we target single core architectures without advanced caching, hence a measurement based approach will give a very accurate estimate.
 
 In this course, we have seen the use of symbolic execution to automatically generate concrete tests triggering each feasible execution path.
 
-To correctly take concurrency into account resource state is treated symbolically. Thus, for a critical section, the resource is given a fresh (new) symbolic value for each critical section. Inside the critical section we are ensured exclusive access (and thus the value can be further constrained inside of the critical section).
+To correctly take concurrency into account resource state can be treated symbolically. Thus, for a critical section, the resource is given a fresh (new) symbolic value for each critical section. Inside the critical section we are ensured exclusive access (and thus the value can be further constrained inside of the critical section).
 
-We model hardware (peripheral register accesses) as shared resources (shared between your application and the environment). As such each *read* regenerates a new symbolic value while write operations have no side-effect.
+We can model hardware (peripheral register accesses) as shared resources (shared between your application and the environment). As such each *read* regenerates a new symbolic value while write operations have no side-effect. Luckily, in the Rust embedded ecosystem, all register accesses are done through `volatile_register`, thus by overriding [volatile_register](https://docs.rs/volatile-register/latest/volatile_register/) we can get fresh (new) symbolic values for each register read (during analysis writing to a `volatile_register` is a no-operation).
 
-For now, we just assume we have complete WCETs information in terms of `start` and `end` time-stamps (`u32`) for each section `[_: ... ]`,  see the `Trace` data structure in `common.rs` (sections can be the complete task as well as an inner critical section).
+For now, we just assume we have complete WCETs information in terms of `start` and `end` time-stamps (`u32`) for each section `_: ...`,  see the `Trace` data structure in `common.rs` (a section can be the complete task as well as an inner critical section).
 
 ---
 
 ### Total CPU request (or total load factor)
 
-Each task `t` has a WCET `C(t)` and given (assumed) inter-arrival time `A(t)`. The CPU request (or load) inferred by a task is `L(t)` = `C(t)`/`A(t)`. Ask yourself, what is the consequence of `C(t)` > `A(t)`?
+Each task `t` has a WCET `C(t)` and given (assumed) inter-arrival time `A(t)`. The CPU request (or load) inferred by a task is `L(t) = C(t) / A(t)`. Ask yourself, what is the consequence of `C(t) > A(t)`?
 
-We can compute the total CPU request (or load factor), as `Ltot` = sum(`L(T)`), `T` being the set of tasks.
+We can compute the total CPU request (or load factor), as `Ltot = sum(L(T))`, `T` being the set of tasks `T: {t1..tn}`.
 
-Ask yourself, what is the consequence of `Ltot` > 1?
+Ask yourself, what is the consequence of `Ltot > 1`?
 
-Implement a function taking `Vec<Task>` and returning the load factor. (Use data structures from `common.rs` for suitable data structures and inspiration.)
+Implement a function taking the set of tasks `T` (represented by `Vec<Task>`) and returning the load factor. (Use data structures from `common.rs` for suitable data structures and inspiration.)
 
 ---
 
@@ -109,24 +111,24 @@ https://doc.lagout.org/science/0_Computer%20Science/2_Algorithms/Hard%20Real-Tim
 
 In general the response time for a task `t` is computed as.
 
-- `R(t)` = `B(t)` + `C(t)` + `I(t)`, where
+- `R(t) = B(t) + C(t) + I(t)`, where
   - `B(t)` is the blocking time for task `t`, and
   - `I(t)` is the interference (preemptions) to task `t`
 
 For a task set to be schedulable under SRP we have two requirements:
 
-- `Ltot` < 1
-- `R(t)` < `D(t)`, for all tasks `t`. (`R(t)` > `D(t)` implies a deadline miss.)
+- `Ltot < 1`
+- `R(t) < D(t)`, for all tasks `t`. (`R(t) >= D(t)` implies a deadline miss.)
 
 ---
 
 #### Blocking
 
-SRP brings the outstanding property of single blocking. In other words, a task `t` is blocked by the maximal critical section a task `l` with lower priority (`P(l)`< `P(t)`) holds a resource `l_r`, with a ceiling `π(l_r)` equal or higher than the priority of `t`.
+SRP brings the outstanding property of single blocking. In other words, a task `t` is blocked by the maximal critical section a task `l` with lower priority (`P(l) < P(t)`) holds a resource `l_r`, with a ceiling `π(l_r)` equal or higher than the priority of `t` (`π(l_r) >= P(t)`).
 
-- `B(t)` = max(`C(l_r)`), where `P(l)`< `P(t)`, `π(l_r) >= P(t)`  
+- `B(t) = max(C(l_r))`, where `P(l) < P(t)`, `π(l_r) >= P(t)`  
 
-Implement a function that takes a Task `t` and returns the corresponding blocking time `B(t)`.
+Implement a function that takes a Task `t` together with the system wide set of tasks `T`, and returns the corresponding blocking time `B(t)`.
 
 ---
 
@@ -134,21 +136,21 @@ Implement a function that takes a Task `t` and returns the corresponding blockin
 
 - `Bp(t)` the busy period for Task `t` denotes the duration from task arrival (request for execution) until finish.
 
-Intuitively, during the busy period `Bp(t)` each higher priority task `h` (`P(h)`>`P(t)`) may preempt (`Bp(t)`/`A(h)` rounded upwards) number of times.
+Intuitively, during the busy period `Bp(t)` each higher priority task `h` (`P(h) > P(t)`) may preempt `⌈ Bp(t) / A(h) ⌉` (ceiling, i.e. rounded upwards) number of times.
 
 ---
 
 #### Preemptions, over approximation
 
-We can over approximate the `Bp(t)` = `D(t)` (assuming the *worst permissible busy-period*).
+We can over approximate the `Bp(t) = D(t)` (assuming the *worst permissible busy-period*).
 
-- `I(t)` = sum(`C(h)` * ceiling(`Bp(t)`/`A(h)`)), forall tasks `h`, `P(h)` > `P(t)`
+- `I(t) = sum(C(h) * ceiling(Bp(t) / A(h)))`, forall tasks `h`, `P(h) > P(t)`
 
-As a technical detail. For the scheduling of tasks of the same priority, the original work on SRP adopted a FIFO model (first arrived, first served). Under Rust RTIC, for efficiency tasks are bound directly to interrupts and scheduled by the underlying hardware. The hardware schedules tasks based on priority, on tie (same priority) tasks are scheduled based on priority group, and on tie of priority group based on vector index number. For sake of simplicity we assume all tasks to have unique priorities for this exercise, although detailed analysis is possible taking vector indexing into account (priority grouping is not used by RTIC). A better approximation is thus possible treating tasks at the same priority as interfering each other. (Technically tasks on the same priority level will not preempt each other, but from a scheduling viewpoint the effect will be seen as interference.)
+As a technical detail. For the scheduling of tasks of the same priority, the original work on SRP adopted a FIFO model (first arrived, first served). Under Rust RTIC, for efficiency tasks are bound directly to interrupts and scheduled by the underlying hardware. The hardware schedules tasks based on priority, on tie (same priority) tasks are scheduled based on priority group, and on tie of priority group based on vector index number. For sake of simplicity we assume all tasks to have unique priorities for this exercise, although detailed analysis is possible taking vector indexing into account (priority grouping is not used by RTIC). A better approximation is thus possible treating tasks at the same priority as interfering each other. (Technically tasks on the same priority level will not preempt each other, but from a scheduling viewpoint the worst case effect can be seen as interference.)
 
-Implement a function that takes a `Task` and returns the corresponding preemption time `I(t)`.
+Implement a function that takes a Task `t` together with the system wide set of tasks `T` and returns the corresponding preemption time `I(t)`.
 
-Now make a function that computes the response time for a `Task`, by combing `B(t)`, `C(t)`, and `I(t)`.
+Now implement a function that computes the response time for a task `t` (for the system wide set of tasks `T`), as `R(t) = B(t) + C(t) + I(t)`.
 
 Finally, make a function that iterates over the task set and returns a vector with containing:
 `Vec<Task, R(t), C(t), B(t), I(t)>`. Just a simple `println!` of that vector gives the essential information on the analysis.
@@ -157,9 +159,9 @@ Finally, make a function that iterates over the task set and returns a vector wi
 
 #### Preemptions revisited
 
-The *busy-period* is in `7.22` (Hard Real-Time Computing Systems) computed by a recurrence equation.
+The *busy-period* is in `7.22` (Hard Real-Time Computing Systems) computed by a recurrence equation. Intuitively, the response time  `R(t) = B(t) + C(t) + I(t, R(t))`, where `I(t,R(t))` denotes the interference (preemption time) during the *busy period* (`R(t)`). We iteratively compute `R(t)`, starting from `R(t) = B(t) + C(t)` (the time without interference/preemptions) until a fix-point is reached. 
 
-Implement the recurrence relation (equation) starting from the base case `B(t) + C(t)`. The recurrence might diverge in case `Bp(t) > D(t)`, this is a pathological case, where the task becomes non-schedulable. In that case terminate the recurrence (with an error indicating a deadline miss). You might want to indicate that a non feasible response time have been reached by using the `Result<u32, ())>` type or some other means e.g., (`Option<u32>`).
+Implement the recurrence relation (equation) starting from `R(t) = B(t) + C(t)`. The recurrence might diverge in case `Bp(t) > D(t)`, this is a pathological case, where the task becomes non-schedulable. In that case terminate the recurrence (with an error indicating a deadline miss). You might want to indicate that a non feasible response time have been reached by using the `Result<u32, ())>` type or some other means e.g., (`Option<u32>`).
 
 You can let your `preemption` function take a parameter indicating if the exact solution or approximation should be used.
 
@@ -185,7 +187,7 @@ Use the built in test framework to formulate unit tests for your code.
 
 ## Learning outcomes, Robust and Energy Efficient Real-Time Systems
 
-- Real-Time Scheduling and Analysis. SRP provides an execution model and resource management policy with outstanding properties of race-and deadlock free execution, single blocking and stack sharing. Our Rust RTIC framework provides a correct by construction implementation of SRP, exploiting zero-cost (software) abstractions. Using Rust RTIC resource management and scheduling, is done by directly by the hardware, which allows for efficiency (Rust zero-cost abstraction) and predictability.
+- Real-Time Scheduling and Analysis. SRP provides an execution model and resource management policy with outstanding properties of race-and deadlock free execution, single blocking and stack sharing. Our Rust RTIC framework provides a correct by construction implementation of SRP, exploiting zero-cost (software) abstractions. Using Rust RTIC resource management and scheduling are performed directly by the hardware which allows for efficiency (Rust zero-cost abstraction) and predictability.
 
   The SRP model is amenable to static analysis, which you have now internalized through an actual implementation of the theoretical foundations. We have also covered methods for Worst Case Execution Time (WCET) analysis by cycle accurate measurements, which in combination with Symbolic Execution for test-case generation allows for high degree of automation.
 
