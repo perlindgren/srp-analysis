@@ -51,7 +51,6 @@ pub struct Tasks(pub Vec<Task>);
 
 impl fmt::Display for Tasks {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // writeln!(f, "Tasks")?;
         for t in &self.0 {
             write!(f, "{}", t)?;
         }
