@@ -1,10 +1,10 @@
 use indented::indented;
-use std::collections::{HashMap, HashSet};
+use serde::{Deserialize, Serialize};
 use std::fmt;
 
 // common data structures
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct Task {
     pub id: String,
     pub prio: u8,
@@ -24,7 +24,7 @@ impl fmt::Display for Task {
 }
 
 //#[derive(Debug, Clone)]
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct Trace {
     pub id: String,
     pub start: u32,
@@ -46,7 +46,7 @@ impl fmt::Display for Trace {
 // useful types
 
 // Our task set
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct Tasks(pub Vec<Task>);
 
 impl fmt::Display for Tasks {
@@ -58,48 +58,34 @@ impl fmt::Display for Tasks {
     }
 }
 
-// A map from Task/Resource identifiers to priority
-pub type IdPrio = HashMap<String, u8>;
-
-// A map from Task identifiers to a set of Resource identifiers
-pub type TaskResources = HashMap<String, HashSet<String>>;
-
-// Derives the above maps from a set of tasks
-pub fn pre_analysis(tasks: &Tasks) -> (IdPrio, TaskResources) {
-    let mut ip = HashMap::new();
-    let mut tr: TaskResources = HashMap::new();
-    for t in &tasks.0 {
-        update_prio(t.prio, &t.trace, &mut ip);
-        for i in &t.trace.inner {
-            update_tr(t.id.clone(), i, &mut tr);
-        }
+use std::fs::File;
+use std::io::prelude::*;
+impl Tasks {
+    pub fn load(path: &str) -> std::io::Result<Tasks> {
+        let mut file = File::open(path)?;
+        let mut contents = String::new();
+        let _size = file.read_to_string(&mut contents)?;
+        // Convert the JSON string to Tasks.
+        let deserialized: Tasks = serde_json::from_str(&contents).unwrap();
+        Ok(deserialized)
     }
-    (ip, tr)
-}
 
-// helper functions
-fn update_prio(prio: u8, trace: &Trace, hm: &mut IdPrio) {
-    if let Some(old_prio) = hm.get(&trace.id) {
-        if prio > *old_prio {
-            hm.insert(trace.id.clone(), prio);
-        }
-    } else {
-        hm.insert(trace.id.clone(), prio);
-    }
-    for cs in &trace.inner {
-        update_prio(prio, cs, hm);
+    pub fn store(&self, path: &str) -> std::io::Result<()> {
+        // Convert the Task to a JSON string.
+        let serialized = serde_json::to_string(self).unwrap();
+        let mut file = File::create(path)?;
+        file.write_all(serialized.as_bytes())
     }
 }
 
-fn update_tr(s: String, trace: &Trace, trmap: &mut TaskResources) {
-    if let Some(seen) = trmap.get_mut(&s) {
-        seen.insert(trace.id.clone());
-    } else {
-        let mut hs = HashSet::new();
-        hs.insert(trace.id.clone());
-        trmap.insert(s.clone(), hs);
-    }
-    for trace in &trace.inner {
-        update_tr(s.clone(), trace, trmap);
+#[cfg(test)]
+mod test {
+    use super::*;
+    #[test]
+    fn serde() {
+        let tasks = crate::task_sets::task_set1();
+        tasks.store("task_sets/task_set1.json").ok();
+        let tasks_loaded = Tasks::load("task_sets/task_set1.json").unwrap();
+        assert_eq!(tasks, tasks_loaded);
     }
 }
