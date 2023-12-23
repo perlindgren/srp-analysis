@@ -5,6 +5,7 @@
         "RAUK",
         "RTIC",
         "println",
+        "prio",
         "schedulability",
         "schedulable"
     ]
