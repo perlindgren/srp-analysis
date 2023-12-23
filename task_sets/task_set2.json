@@ -42,24 +42,5 @@
                 }
             ]
         }
-    },
-    {
-        "id": "T3",
-        "prio": 3,
-        "deadline": 50,
-        "inter_arrival": 50,
-        "trace": {
-            "id": "T3",
-            "start": 0,
-            "end": 30,
-            "inner": [
-                {
-                    "id": "R2",
-                    "start": 10,
-                    "end": 20,
-                    "inner": []
-                }
-            ]
-        }
     }
 ]

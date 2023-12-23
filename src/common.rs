@@ -43,8 +43,6 @@ impl fmt::Display for Trace {
     }
 }
 
-// useful types
-
 // Our task set
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct Tasks(pub Vec<Task>);
@@ -60,8 +58,10 @@ impl fmt::Display for Tasks {
 
 use std::fs::File;
 use std::io::prelude::*;
+use std::path::PathBuf;
+
 impl Tasks {
-    pub fn load(path: &str) -> std::io::Result<Tasks> {
+    pub fn load(path: &PathBuf) -> std::io::Result<Tasks> {
         let mut file = File::open(path)?;
         let mut contents = String::new();
         let _size = file.read_to_string(&mut contents)?;
@@ -70,7 +70,7 @@ impl Tasks {
         Ok(deserialized)
     }
 
-    pub fn store(&self, path: &str) -> std::io::Result<()> {
+    pub fn store(&self, path: &PathBuf) -> std::io::Result<()> {
         // Convert the Task to a JSON string.
         let serialized = serde_json::to_string(self).unwrap();
         let mut file = File::create(path)?;
@@ -84,8 +84,8 @@ mod test {
     #[test]
     fn serde() {
         let tasks = crate::task_sets::task_set1();
-        tasks.store("task_sets/task_set1.json").ok();
-        let tasks_loaded = Tasks::load("task_sets/task_set1.json").unwrap();
+        tasks.store(&PathBuf::from("task_sets/task_set1.json")).ok();
+        let tasks_loaded = Tasks::load(&PathBuf::from("task_sets/task_set1.json")).unwrap();
         assert_eq!(tasks, tasks_loaded);
     }
 }
