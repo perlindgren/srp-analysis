@@ -73,9 +73,11 @@ fn main() {
     };
 
     // builds a vector of tasks t1, t2, t3
-    let tasks: Tasks = vec![t1, t2, t3];
+    let tasks: Tasks = Tasks(vec![t1, t2, t3]);
 
-    println!("tasks {:?}", &tasks);
+    println!("Task set\n{}", tasks);
+
+    // println!("tasks {:?}", &tasks);
     // println!("tot_util {}", tot_util(&tasks));
 
     let (ip, tr) = pre_analysis(&tasks);

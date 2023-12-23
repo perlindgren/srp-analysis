@@ -1,4 +1,6 @@
+use indented::indented;
 use std::collections::{HashMap, HashSet};
+use std::fmt;
 
 // common data structures
 
@@ -11,6 +13,16 @@ pub struct Task {
     pub trace: Trace,
 }
 
+impl fmt::Display for Task {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "id            {}", self.id)?;
+        writeln!(f, "prio          {}", self.prio)?;
+        writeln!(f, "deadline      {}", self.deadline)?;
+        writeln!(f, "inter_arrival {}", self.inter_arrival)?;
+        writeln!(f, "trace:\n{}", self.trace)
+    }
+}
+
 //#[derive(Debug, Clone)]
 #[derive(Debug)]
 pub struct Trace {
@@ -20,10 +32,32 @@ pub struct Trace {
     pub inner: Vec<Trace>,
 }
 
+impl fmt::Display for Trace {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "id {} [{}...{}]", self.id, self.start, self.end)?;
+
+        for i in &self.inner {
+            write!(f, "{}", indented(i))?
+        }
+        Ok(())
+    }
+}
+
 // useful types
 
 // Our task set
-pub type Tasks = Vec<Task>;
+#[derive(Debug)]
+pub struct Tasks(pub Vec<Task>);
+
+impl fmt::Display for Tasks {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // writeln!(f, "Tasks")?;
+        for t in &self.0 {
+            write!(f, "{}", t)?;
+        }
+        writeln!(f)
+    }
+}
 
 // A map from Task/Resource identifiers to priority
 pub type IdPrio = HashMap<String, u8>;
@@ -35,7 +69,7 @@ pub type TaskResources = HashMap<String, HashSet<String>>;
 pub fn pre_analysis(tasks: &Tasks) -> (IdPrio, TaskResources) {
     let mut ip = HashMap::new();
     let mut tr: TaskResources = HashMap::new();
-    for t in tasks {
+    for t in &tasks.0 {
         update_prio(t.prio, &t.trace, &mut ip);
         for i in &t.trace.inner {
             update_tr(t.id.clone(), i, &mut tr);

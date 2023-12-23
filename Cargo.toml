@@ -1,8 +1,9 @@
 [package]
-name = "d7020e_lab4"
+name = "d7020e_lab4_solution"
 version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+indented = "0.1.0"
