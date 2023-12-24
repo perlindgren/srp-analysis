@@ -1,13 +1,10 @@
 // SRP based analysis of task set
 
 use crate::common::*;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 // A map from Task/Resource identifiers to priority
 pub type IdPrio = HashMap<String, u8>;
-
-// A map from Task identifiers to a set of Resource identifiers
-pub type TaskResources = HashMap<String, HashSet<String>>;
 
 // helper functions
 fn update_prio(prio: u8, trace: &Trace, hm: &mut IdPrio) {
@@ -23,63 +20,61 @@ fn update_prio(prio: u8, trace: &Trace, hm: &mut IdPrio) {
     }
 }
 
-fn update_tr(s: String, trace: &Trace, trmap: &mut TaskResources) {
-    if let Some(seen) = trmap.get_mut(&s) {
-        seen.insert(trace.id.clone());
-    } else {
-        let mut hs = HashSet::new();
-        hs.insert(trace.id.clone());
-        trmap.insert(s.clone(), hs);
-    }
-    for trace in &trace.inner {
-        update_tr(s.clone(), trace, trmap);
-    }
-}
-
 impl Trace {
     pub fn wcet(&self) -> u32 {
         self.end - self.start
     }
 
     pub fn blocking(&self, t: &Task, ip: &IdPrio) -> u32 {
+        println!("blocking trace\n{}", self);
         if let Some(p) = ip.get(&self.id) {
-            if *p > t.prio {
+            println!("block on {} at prio {}", self.id, p);
+            if *p >= t.prio {
+                println!("-- blocking -- {}", self.wcet());
                 return self.wcet();
             }
         }
 
-        self.inner
-            .iter()
-            .fold(0, |blocking, trace| blocking.max(trace.blocking(t, ip)))
+        self.inner.iter().fold(0, |blocking, trace| {
+            // println!("trace {}", trace);
+            blocking.max(trace.blocking(t, ip))
+        })
     }
 }
 
 impl Task {
-    // The wcet of a task
+    // The wcet of self
     pub fn wcet(&self) -> u32 {
         self.trace.end - self.trace.start
     }
 
-    // The blocking of a task
+    // The blocking of self to a task t
     pub fn blocking(&self, t: &Task, ip: &IdPrio) -> u32 {
+        println!("check blocking of {} by {}", t.id, self.id);
         self.trace.blocking(t, ip)
     }
 }
 
 impl Tasks {
     // Derives the above maps from a set of tasks
-    pub fn pre_analysis(&self) -> (IdPrio, TaskResources) {
+    // pub fn pre_analysis(&self) -> (IdPrio, TaskResources) {
+
+    pub fn pre_analysis(&self) -> IdPrio {
         let mut ip = HashMap::new();
-        let mut tr: TaskResources = HashMap::new();
+
+        // let mut tr: TaskResources = HashMap::new();
+
         for t in &self.0 {
             update_prio(t.prio, &t.trace, &mut ip);
-            for i in &t.trace.inner {
-                update_tr(t.id.clone(), i, &mut tr);
-            }
+            // for i in &t.trace.inner {
+            //     update_tr(t.id.clone(), i, &mut tr);
+            // }
         }
-        (ip, tr)
+        // (ip, tr)
+        ip
     }
 
+    // The set of tasks with lower priority than t
     pub fn lower(&self, t: &Task) -> Tasks {
         Tasks(
             self.0
@@ -90,6 +85,7 @@ impl Tasks {
         )
     }
 
+    // The set of tasks with higher priority than t
     pub fn higher(&self, t: &Task) -> Tasks {
         Tasks(
             self.0
@@ -116,47 +112,64 @@ impl Tasks {
         tot_util
     }
 
-    // The blocking of a task
+    // The blocking of lower priority tasks to task t
     pub fn blocking(&self, t: &Task, ip: &IdPrio) -> u32 {
         let lower = self.lower(t);
-        println!("lower\n{}", lower);
-        todo!();
+
+        let blocking = lower
+            .0
+            .iter()
+            .fold(0, |blocking, t1| blocking.max(t1.blocking(t, ip)));
+        println!("max blocking {}\n----\n", blocking);
+        blocking
+    }
+
+    // The interference of higher priority tasks to task t
+    pub fn interference(&self, t: &Task) -> u32 {
+        let higher = self.higher(t);
+        let busy_period = t.deadline;
+        println!(
+            "interference to task {} during busy period {}",
+            t.id, busy_period
+        );
+        let interference = higher.0.iter().fold(0, |interference, t1| {
+            if t1.prio > t.prio {
+                let nr = 1 + busy_period / t1.inter_arrival;
+                let pre = nr * t1.wcet();
+                println!(
+                    "interference by {},  {} = {} (times) * {} (wcet), inter_arrival {}",
+                    t1.id,
+                    pre,
+                    nr,
+                    t1.wcet(),
+                    t1.inter_arrival
+                );
+                interference + pre
+            } else {
+                interference
+            }
+        });
+
+        println!("total interference {}\n----\n", interference);
+        interference
     }
 
     // response time analysis
     pub fn response_time(&self) {
-        let (ip, tr) = self.pre_analysis();
+        let ip = self.pre_analysis();
         println!("ip: {:?}", ip);
-        println!("tr: {:?}", tr);
-        // A map from Task identifiers to a set of Resource identifiers
-        pub type TaskResources = HashMap<String, HashSet<String>>;
+
         for t in &self.0 {
+            println!("analyzing task {}", t.id);
+            let blocking = self.blocking(t, &ip);
+            let interference = self.interference(t);
+
             println!("task {}", t.id);
-            let mut cs = 0;
-
-            for t2 in &self.0 {
-                if t2.prio < t.prio {
-                    if let Some(resources) = tr.get(&t2.id) {
-                        println!("blocked by {} : {:?}", t2.id, resources);
-                        for r in resources {
-                            if let Some(p) = ip.get(r) {
-                                println!("r:id {} ceiling {}", r, p);
-                            }
-                        }
-                    }
-                }
-            }
-
-            let mut preemption = 0;
-            let busy_period = t.deadline;
-            for t2 in &self.0 {
-                if t2.prio > t.prio {
-                    let nr = 1 + busy_period / t2.inter_arrival;
-                    let pre = nr * t2.wcet();
-                    println!("preempted by {}, nr {}, time {}", t2.id, nr, pre);
-                    preemption += pre
-                }
-            }
+            println!("response time {}", blocking + interference + t.wcet());
+            println!("wcet          {}", t.wcet());
+            println!("blocking      {}", blocking);
+            println!("interference  {}", interference);
+            println!("----------------\n");
         }
     }
 }
@@ -177,7 +190,7 @@ mod test {
 
     #[test]
     fn response_time_set1() {
-        let tasks = crate::task_sets::task_set1();
+        let tasks = Tasks::load(&PathBuf::from("task_sets/task_set1.json")).unwrap();
         let response_time = tasks.response_time();
     }
 

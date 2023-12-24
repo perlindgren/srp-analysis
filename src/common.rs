@@ -33,7 +33,7 @@ pub struct Trace {
 
 impl fmt::Display for Trace {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "id {} [{}...{}]", self.id, self.start, self.end)?;
+        writeln!(f, "{} [{}...{}]", self.id, self.start, self.end)?;
 
         for i in &self.inner {
             write!(f, "{}", indented(i))?
