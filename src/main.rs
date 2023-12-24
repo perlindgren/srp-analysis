@@ -19,6 +19,7 @@ fn main() {
     let tasks = Tasks::load(&cli.path).unwrap();
     println!("Task set\n{}", tasks);
 
-    //     // println!("tasks {:?}", &tasks);
     println!("tot_util {}", tasks.total_utilization());
+    println!("response time");
+    tasks.response_time();
 }
