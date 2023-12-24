@@ -4,25 +4,13 @@ use std::fmt;
 
 // common data structures
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Task {
     pub id: String,
     pub prio: u8,
     pub deadline: u32,
     pub inter_arrival: u32,
     pub trace: Trace,
-}
-
-impl Default for Task {
-    fn default() -> Self {
-        Task {
-            id: "".to_string(),
-            prio: 0,
-            deadline: 0,
-            inter_arrival: 0,
-            trace: Trace::default(),
-        }
-    }
 }
 
 impl fmt::Display for Task {
@@ -35,24 +23,12 @@ impl fmt::Display for Task {
     }
 }
 
-//#[derive(Debug, Clone)]
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Trace {
     pub id: String,
     pub start: u32,
     pub end: u32,
     pub inner: Vec<Trace>,
-}
-
-impl Default for Trace {
-    fn default() -> Self {
-        Trace {
-            id: "".to_string(),
-            start: 0,
-            end: 0,
-            inner: vec![],
-        }
-    }
 }
 
 impl fmt::Display for Trace {
@@ -94,7 +70,7 @@ impl Tasks {
     }
 
     pub fn store(&self, path: &PathBuf) -> std::io::Result<()> {
-        // Convert the Task to a JSON string.
+        // Convert Tasks to a JSON string.
         let serialized = serde_json::to_string(self).unwrap();
         let mut file = File::create(path)?;
         file.write_all(serialized.as_bytes())
