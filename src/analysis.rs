@@ -260,6 +260,7 @@ mod test {
     fn response_time_set2() {
         let tasks = Tasks::load(&PathBuf::from("task_sets/task_set2.json")).unwrap();
         let response_time = tasks.response_time(false);
+        println!("{:?}", response_time);
     }
 
     #[test]

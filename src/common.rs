@@ -87,6 +87,18 @@ pub struct TaskResult {
     pub interference: Option<u32>,
 }
 
+impl fmt::Display for TaskResult {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "task          {}", self.task.id)?;
+        writeln!(f, "exact         {}", self.exact)?;
+        writeln!(f, "response_time {:?}", self.response_time)?;
+        writeln!(f, "wcet          {}", self.wcet)?;
+        writeln!(f, "blocking      {}", self.blocking)?;
+        writeln!(f, "interference  {:?}", self.interference)?;
+        writeln!(f)
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct TasksResult(pub Vec<TaskResult>);
 
