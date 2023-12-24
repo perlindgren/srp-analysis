@@ -154,23 +154,84 @@ impl Tasks {
         interference
     }
 
+    // The interference of higher priority tasks to task t, starting from busy period
+    pub fn exact(&self, t: &Task, busy_period: u32) -> Option<u32> {
+        println!(
+            "interference to task {} during busy period {}",
+            t.id, busy_period
+        );
+        let new_busy_period = self.0.iter().fold(0, |interference, t1| {
+            if t1.prio > t.prio {
+                let nr = 1 + busy_period / t1.inter_arrival;
+                let pre = nr * t1.wcet();
+                println!(
+                    "interference by {},  {} = {} (times) * {} (wcet), inter_arrival {}",
+                    t1.id,
+                    pre,
+                    nr,
+                    t1.wcet(),
+                    t1.inter_arrival
+                );
+                interference + pre
+            } else {
+                interference
+            }
+        });
+
+        if new_busy_period > t.deadline {
+            None
+        } else if new_busy_period == busy_period {
+            Some(busy_period)
+        } else {
+            self.exact(t, new_busy_period)
+        }
+    }
+
+    // The exact interference of higher priority tasks to task t
+    pub fn interference_exact(&self, t: &Task) -> Option<u32> {
+        let higher = self.higher(t);
+
+        higher.exact(t, t.deadline)
+    }
+
     // response time analysis
-    pub fn response_time(&self) {
+    pub fn response_time(&self, exact: bool) -> TasksResult {
         let ip = self.pre_analysis();
         println!("ip: {:?}", ip);
 
-        for t in &self.0 {
-            println!("analyzing task {}", t.id);
-            let blocking = self.blocking(t, &ip);
-            let interference = self.interference(t);
+        let tasks_results: Vec<TaskResult> = self
+            .0
+            .iter()
+            .map(|t| {
+                let blocking = self.blocking(t, &ip);
 
-            println!("task {}", t.id);
-            println!("response time {}", blocking + interference + t.wcet());
-            println!("wcet          {}", t.wcet());
-            println!("blocking      {}", blocking);
-            println!("interference  {}", interference);
-            println!("----------------\n");
-        }
+                let interference = if exact {
+                    self.interference_exact(t)
+                } else {
+                    Some(self.interference(t))
+                };
+                let wcet = t.wcet();
+                let response_time = interference.map(|i| i + wcet + blocking);
+
+                println!("analyzing task {}", t.id);
+                println!("task {}", t.id);
+                println!("response time {:?}", response_time);
+                println!("wcet          {}", t.wcet());
+                println!("blocking      {}", blocking);
+                println!("interference  {:?}", interference);
+                println!("----------------\n");
+
+                TaskResult {
+                    task: t.clone(),
+                    exact,
+                    response_time: response_time,
+                    wcet,
+                    blocking,
+                    interference: interference,
+                }
+            })
+            .collect();
+        TasksResult(tasks_results)
     }
 }
 
@@ -191,13 +252,14 @@ mod test {
     #[test]
     fn response_time_set1() {
         let tasks = Tasks::load(&PathBuf::from("task_sets/task_set1.json")).unwrap();
-        let response_time = tasks.response_time();
+        let response_time = tasks.response_time(false);
+        println!("{:?}", response_time);
     }
 
     #[test]
     fn response_time_set2() {
         let tasks = Tasks::load(&PathBuf::from("task_sets/task_set2.json")).unwrap();
-        let response_time = tasks.response_time();
+        let response_time = tasks.response_time(false);
     }
 
     #[test]

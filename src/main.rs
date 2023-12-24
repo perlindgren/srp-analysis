@@ -21,5 +21,5 @@ fn main() {
 
     println!("tot_util {}", tasks.total_utilization());
     println!("response time");
-    tasks.response_time();
+    tasks.response_time(false);
 }

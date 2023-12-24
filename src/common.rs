@@ -77,6 +77,19 @@ impl Tasks {
     }
 }
 
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
+pub struct TaskResult {
+    pub task: Task,
+    pub exact: bool,
+    pub response_time: Option<u32>,
+    pub wcet: u32,
+    pub blocking: u32,
+    pub interference: Option<u32>,
+}
+
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
+pub struct TasksResult(pub Vec<TaskResult>);
+
 #[cfg(test)]
 mod test {
     use super::*;
