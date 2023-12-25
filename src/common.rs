@@ -102,6 +102,16 @@ impl fmt::Display for TaskResult {
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct TasksResult(pub Vec<TaskResult>);
 
+impl fmt::Display for TasksResult {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "Tasks")?;
+        for t in &self.0 {
+            writeln!(f, "{}", t)?;
+        }
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
