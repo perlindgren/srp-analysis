@@ -80,7 +80,6 @@ impl Tasks {
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct TaskResult {
     pub task: Task,
-    pub exact: bool,
     pub response_time: Option<u32>,
     pub wcet: u32,
     pub blocking: u32,
@@ -90,7 +89,6 @@ pub struct TaskResult {
 impl fmt::Display for TaskResult {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "task          {}", self.task.id)?;
-        writeln!(f, "exact         {}", self.exact)?;
         writeln!(f, "response_time {:?}", self.response_time)?;
         writeln!(f, "wcet          {}", self.wcet)?;
         writeln!(f, "blocking      {}", self.blocking)?;
