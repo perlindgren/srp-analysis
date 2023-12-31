@@ -1,5 +1,5 @@
 [package]
-name = "d7020e_lab4_solution"
+name = "srp"
 version = "0.1.0"
 edition = "2021"
 
@@ -14,7 +14,7 @@ name = "main"
 path = "src/main.rs"
 
 [dependencies]
-clap = { version = "4.4.11", features = ["derive", "string"] }
+clap = { version = "4.4.12", features = ["derive", "string"] }
 indented = "0.1.0"
 plotters = "0.3.5"
 serde = { version = "1.0.193", features = ["serde_derive"] }
